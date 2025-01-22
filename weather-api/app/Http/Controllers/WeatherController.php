@@ -2,52 +2,44 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\WeatherService;
+use App\Services\GeocodeService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Http\JsonResponse;
 
 class WeatherController extends Controller
 {
-    private $baseUrl = 'https://api.openweathermap.org/data/2.5';
-    private $geoUrl = 'https://api.openweathermap.org/geo/1.0';
+    protected $weatherService;
+    protected $geocodeService;
 
-    private $apiKey;
-
-    public function __construct()
+    public function __construct(WeatherService $weatherService, GeocodeService $geocodeService)
     {
-        $this->apiKey = env('OPENWEATHER_API_KEY');
+        $this->weatherService = $weatherService;
+        $this->geocodeService = $geocodeService;
     }
 
-    public function getWeatherByCity(Request $request)
+    public function getWeather(Request $request): JsonResponse
     {
-        $city = $request->query('city');
-
-        if (!$city) {
-            return response()->json(['error' => 'City parameter is required'], 400);
-        }
-
-        // First get coordinates using Geocoding API
-        $geoResponse = Http::get("{$this->geoUrl}/direct", [
-            'q' => $city,
-            'limit' => 1,
-            'appid' => $this->apiKey
+        $request->validate([
+            'city' => 'required|string|max:255',
         ]);
 
-        if ($geoResponse->failed() || empty($geoResponse->json())) {
-            return response()->json(['error' => 'City not found'], 404);
+        try {
+            $coordinates = $this->geocodeService->getCoordinates($request->city);
+
+            if (!$coordinates) {
+                return response()->json(['error' => 'City not found'], 404);
+            }
+
+            $currentWeather = $this->weatherService->getCurrentWeather($coordinates);
+            $forecast = $this->weatherService->getForecast($coordinates);
+
+            return response()->json([
+                'current' => $currentWeather,
+                'forecast' => $forecast,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
         }
-
-        $location = $geoResponse->json()[0];
-        $lat = $location['lat'];
-        $lon = $location['lon'];
-
-        // Get current weather
-        $currentWeather = Http::get("{$this->baseUrl}/weather", [
-            'lat' => $lat,
-            'lon' => $lon,
-            'appid' => $this->apiKey,
-            'units' => 'metric'
-        ]);
-
-        return response()->json($currentWeather->json());
     }
 }
