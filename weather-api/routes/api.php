@@ -1,10 +1,8 @@
 <?php
 
 use App\Http\Controllers\WeatherController;
+use App\Http\Controllers\GeocodeController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/weather', [WeatherController::class, 'getWeatherByCity']);
-
-Route::get('/test', function () {
-    return response()->json(['message' => 'API route is working']);
-});
+Route::get('/weather', [WeatherController::class, 'getWeather']);
+Route::get('/geocode', [GeocodeController::class, 'searchCity']);
